@@ -1,8 +1,15 @@
 from flask import Flask, request, jsonify, render_template, redirect, url_for, session
 import sqlite3
+from flask_bcrypt import Bcrypt
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'
+bcrypt = Bcrypt(app)
+
+# Secure session cookies
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SECURE'] = True
+app.config['PERMANENT_SESSION_LIFETIME'] = 3600
 
 # Initialize the SQLite database
 DATABASE = 'app.db'
@@ -48,9 +55,9 @@ def login():
         password = request.form['password']
         with sqlite3.connect(DATABASE) as conn:
             cursor = conn.cursor()
-            cursor.execute('SELECT * FROM users WHERE username = ? AND password = ?', (username, password))
+            cursor.execute('SELECT * FROM users WHERE username = ?', (username,))
             user = cursor.fetchone()
-            if user:
+            if user and bcrypt.check_password_hash(user[2], password):
                 session['username'] = username
                 session['user_id'] = user[0]
                 return redirect(url_for('home'))
@@ -62,10 +69,11 @@ def register():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
+        hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
         with sqlite3.connect(DATABASE) as conn:
             cursor = conn.cursor()
             try:
-                cursor.execute('INSERT INTO users (username, password) VALUES (?, ?)', (username, password))
+                cursor.execute('INSERT INTO users (username, password) VALUES (?, ?)', (username, hashed_password))
                 conn.commit()
                 return redirect(url_for('login'))
             except sqlite3.IntegrityError:
