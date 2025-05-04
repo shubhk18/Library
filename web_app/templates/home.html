@@ -8,7 +8,14 @@
 </head>
 <body>
     <nav>
-        <a href="/">Home</a> | <a href="/books">Books</a> | <a href="/register">Register</a> | <a href="/logout">Logout</a>
+        <a href="/">Home</a> | <a href="/books">Books</a> | 
+        {% if 'username' not in session %}
+        <a href="{{ url_for('register') }}">Register</a>
+        {% endif %}
+        | <a href="/logout">Logout</a>
+        {% if 'username' in session %}
+        <span>Welcome, {{ session['username'] }}!</span>
+        {% endif %}
     </nav>
 
     <h1>Welcome, {{ username }}!</h1>
