@@ -17,11 +17,12 @@ DATABASE = 'app.db'
 def init_db():
     with sqlite3.connect(DATABASE) as conn:
         cursor = conn.cursor()
-        # Create users table
+        # Create users table with an is_admin column
         cursor.execute('''CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL
+            password TEXT NOT NULL,
+            is_admin INTEGER DEFAULT 0
         )''')
         # Create books table
         cursor.execute('''CREATE TABLE IF NOT EXISTS books (
@@ -32,7 +33,8 @@ def init_db():
             FOREIGN KEY (user_id) REFERENCES users (id)
         )''')
         # Add a default admin user
-        cursor.execute('''INSERT OR IGNORE INTO users (username, password) VALUES (?, ?)''', ('admin', 'password'))
+        hashed_password = bcrypt.generate_password_hash('admin_password').decode('utf-8')
+        cursor.execute('''INSERT OR IGNORE INTO users (username, password, is_admin) VALUES (?, ?, ?)''', ('admin', hashed_password, 1))
         conn.commit()
 
 init_db()
@@ -118,6 +120,32 @@ def delete_book(book_id):
             cursor.execute('DELETE FROM books WHERE id = ? AND user_id = ?', (book_id, session['user_id']))
             conn.commit()
         return redirect(url_for('home'))
+    return redirect(url_for('login'))
+
+@app.route('/admin/users')
+def admin_users():
+    if 'username' in session:
+        with sqlite3.connect(DATABASE) as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT is_admin FROM users WHERE username = ?', (session['username'],))
+            user = cursor.fetchone()
+            if user and user[0] == 1:  # Check if the logged-in user is an admin
+                cursor.execute('SELECT id, username FROM users')
+                users = cursor.fetchall()
+                return render_template('admin_users.html', users=users)
+    return redirect(url_for('login'))
+
+@app.route('/admin/delete_user/<int:user_id>', methods=['POST'])
+def delete_user(user_id):
+    if 'username' in session:
+        with sqlite3.connect(DATABASE) as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT is_admin FROM users WHERE username = ?', (session['username'],))
+            user = cursor.fetchone()
+            if user and user[0] == 1:  # Check if the logged-in user is an admin
+                cursor.execute('DELETE FROM users WHERE id = ?', (user_id,))
+                conn.commit()
+                return redirect(url_for('admin_users'))
     return redirect(url_for('login'))
 
 if __name__ == "__main__":
